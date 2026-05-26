@@ -10,9 +10,9 @@ return new class extends Migration
     {
         Schema::create('alert_logs', function (Blueprint $table) {
             $table->id();
-            $table->string('alert_type'); // ph_high, ph_low, device_offline
-            $table->string('message'); // Contoh: "Peringatan! pH air melebihi batas (8.5)"
-            $table->boolean('is_read')->default(false); // Untuk fitur notifikasi web
+            $table->string('alert_type'); // ph_high, ph_low, device_offline, dll.
+            $table->text('message'); // Isi pesan peringatan dari Node-RED
+            $table->boolean('is_read')->default(false); // Penanda apakah sudah dibaca di web
             $table->timestamps();
         });
     }
