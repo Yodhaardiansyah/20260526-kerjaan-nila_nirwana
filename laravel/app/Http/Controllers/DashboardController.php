@@ -32,6 +32,9 @@ class DashboardController extends Controller
             'last_seen' => null, 'is_online' => false, 'uptime' => 'Offline'
         ];
 
+        // Variabel penampung data grafik 1 jam terakhir
+        $chartData = ['labels' => [], 'ph' => [], 'temp' => []];
+
         try {
             $client = new Client([
                 'url'   => env('INFLUXDB_URL'),
@@ -42,9 +45,11 @@ class DashboardController extends Controller
 
             $queryApi = $client->createQueryApi();
             
-            // Ambil measurement sensor (ph, temp, water) DAN measurement relay (aquamonitor)
+            // ----------------------------------------------------
+            // 1. QUERY STATUS REALTIME (Data Paling Akhir / last)
+            // ----------------------------------------------------
             $fluxQuery = 'from(bucket: "' . env('INFLUXDB_BUCKET') . '")
-                |> range(start: -10m)
+                |> range(start: -24h)
                 |> filter(fn: (r) => 
                     r["_measurement"] == "ph" or 
                     r["_measurement"] == "temp" or 
@@ -54,49 +59,115 @@ class DashboardController extends Controller
                 |> last()';
 
             $records = $queryApi->query($fluxQuery);
-            
             if (count($records) > 0) {
                 foreach ($records as $table) {
                     foreach ($table->records as $record) {
-                        
                         $measurement = $record->getMeasurement();
                         $field = $record->getField();
                         $value = $record->getValue();
                         
-                        // JIKA DATA DARI NODE-RED (RELAY): Gunakan nama field-nya
                         if ($measurement === 'aquamonitor') {
-                            if (array_key_exists($field, $realtimeData)) {
-                                $realtimeData[$field] = $value;
-                            }
-                        } 
-                        // JIKA DATA DARI SENSOR (PH/TEMP): Gunakan nama measurement-nya
-                        else {
-                            if (array_key_exists($measurement, $realtimeData)) {
-                                $realtimeData[$measurement] = $value;
-                            }
+                            if (array_key_exists($field, $realtimeData)) $realtimeData[$field] = $value;
+                        } else {
+                            if (array_key_exists($measurement, $realtimeData)) $realtimeData[$measurement] = $value;
                         }
                         
-                        // Catat waktu data terbaru masuk untuk status Online
                         if (!$realtimeData['last_seen']) {
                             $realtimeData['last_seen'] = Carbon::parse($record->getTime())->setTimezone('Asia/Jakarta');
                         }
                     }
                 }
             }
+
+            // ----------------------------------------------------
+            // 2. QUERY GRAFIK DASHBOARD (Khusus 1 Jam Terakhir)
+            // ----------------------------------------------------
+            $chartQuery = 'from(bucket: "' . env('INFLUXDB_BUCKET') . '")
+                |> range(start: -1h)
+                |> filter(fn: (r) => r["_measurement"] == "ph" or r["_measurement"] == "temp")
+                |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+                |> yield(name: "mean")';
+                
+            $chartRecords = $queryApi->query($chartQuery);
+            
+            if (count($chartRecords) > 0) {
+                $tempMap = [];
+                // Menggabungkan data pH dan Temp berdasarkan waktu yang sama
+                foreach ($chartRecords as $table) {
+                    foreach ($table->records as $record) {
+                        $time = Carbon::parse($record->getTime())->setTimezone('Asia/Jakarta')->format('H:i');
+                        $measurement = $record->getMeasurement();
+                        
+                        if (!isset($tempMap[$time])) $tempMap[$time] = ['ph' => null, 'temp' => null];
+                        $tempMap[$time][$measurement] = round($record->getValue(), 2);
+                    }
+                }
+                
+                ksort($tempMap); // Urutkan berdasarkan waktu
+                
+                foreach ($tempMap as $time => $vals) {
+                    $chartData['labels'][] = $time;
+                    $chartData['ph'][] = $vals['ph'];
+                    $chartData['temp'][] = $vals['temp'];
+                }
+            }
+
+            // Cek Status Online
+            if ($realtimeData['last_seen']) {
+                $secondsDiff = Carbon::now('Asia/Jakarta')->timestamp - $realtimeData['last_seen']->timestamp;
+                if ($secondsDiff >= 0 && $secondsDiff <= 300) {
+                    $realtimeData['is_online'] = true;
+                    $realtimeData['uptime'] = 'Online';
+                }
+            }
+
+            // ----------------------------------------------------
+            // 3. QUERY RINGKASAN HARI INI (Average Hari Ini)
+            // ----------------------------------------------------
+            $todaySummary = [
+                'avg_ph' => null,
+                'avg_temp' => null
+            ];
+
+            $summaryQuery = 'from(bucket: "' . env('INFLUXDB_BUCKET') . '")
+                |> range(start: today())
+                |> filter(fn: (r) => 
+                    r["_measurement"] == "ph" or 
+                    r["_measurement"] == "temp"
+                )
+                |> mean()';
+
+            $summaryRecords = $queryApi->query($summaryQuery);
+
+            if (count($summaryRecords) > 0) {
+                foreach ($summaryRecords as $table) {
+                    foreach ($table->records as $record) {
+                        $measurement = $record->getMeasurement();
+                        $value = round($record->getValue(), 2);
+
+                        if ($measurement == 'ph') {
+                            $todaySummary['avg_ph'] = $value;
+                        }
+
+                        if ($measurement == 'temp') {
+                            $todaySummary['avg_temp'] = $value;
+                        }
+                    }
+                }
+            }
+
         } catch (\Exception $e) {
             session()->now('error_influx', 'Koneksi InfluxDB Gagal: ' . $e->getMessage());
             report($e);
         }
 
-        // 3. Kalkulasi Status Online (Toleransi 5 Menit)
-        if ($realtimeData['last_seen']) {
-            $now = Carbon::now('Asia/Jakarta');
-            if ($now->diffInMinutes($realtimeData['last_seen']) <= 5) {
-                $realtimeData['is_online'] = true;
-                $realtimeData['uptime'] = $realtimeData['last_seen']->diffForHumans($now, true) . " yang lalu";
-            }
-        }
-
-        return view('dashboard', compact('settings', 'activities', 'realtimeData'));
+        // TAMBAHKAN chartData ke compact()
+        return view('dashboard', compact(
+            'settings',
+            'activities',
+            'realtimeData',
+            'chartData',
+            'todaySummary'
+        ));
     }
 }

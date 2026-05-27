@@ -6,6 +6,8 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ApiLogController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\GraphController;
+use App\Http\Controllers\SystemStatusController;
+use App\Http\Controllers\SettingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -24,6 +26,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
     Route::get('/grafik', [GraphController::class, 'index'])->name('grafik.index');
     Route::get('/api/grafik/data', [GraphController::class, 'getData'])->name('api.grafik.data');
+    Route::get('/status', [SystemStatusController::class, 'index'])->name('status.index');
+    Route::get('/pengaturan', [SettingController::class, 'index'])->name('pengaturan.index');
     
     // Aksi Form & Tombol Perangkat
     Route::post('/device/settings/update', [DeviceController::class, 'updateSettings'])->name('device.settings.update');
