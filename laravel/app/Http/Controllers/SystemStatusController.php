@@ -60,10 +60,10 @@ class SystemStatusController extends Controller
                     // ====================================================
                     $currentTimestamp = Carbon::now()->timestamp;
                     $dataTimestamp = $latestTime->timestamp;
-                    $secondsDiff = $currentTimestamp - $dataTimestamp; // Selisih dalam hitungan detik
-                    
+                    $secondsDiff = abs($currentTimestamp - $dataTimestamp);
+
                     // Alat dianggap ONLINE hanya jika mengirim data dalam 5 menit terakhir (300 detik)
-                    if ($secondsDiff >= 0 && $secondsDiff <= 300) {
+                    if ($secondsDiff <= 20) {
                         $status['is_online'] = true;
                         $status['message'] = 'Sistem berjalan normal dan terhubung ke server.';
                         $status['color'] = 'green';

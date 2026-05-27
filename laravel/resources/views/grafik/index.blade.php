@@ -107,120 +107,233 @@
     </div>
 
     <script>
-        function graphComponent() {
-            let chart = null; 
+    function graphComponent() {
 
-            return {
-                activeTab: 'ph',
-                timeRange: '1d',
-                customStart: '',
-                customEnd: '',
-                customHours: 2, 
-                isLoading: false,
-                tableData: [],
-                currentUnit: '',
+        let chart = null;
 
-                init() {
-                    this.initChart();
+        return {
+
+            activeTab: 'ph',
+            timeRange: '1d',
+            customStart: '',
+            customEnd: '',
+            customHours: 2,
+
+            isLoading: false,
+            tableData: [],
+            currentUnit: '',
+
+            refreshInterval: null,
+
+            init() {
+
+                this.initChart();
+
+                this.fetchData();
+
+                // Auto refresh data tiap 5 detik
+                this.refreshInterval = setInterval(() => {
                     this.fetchData();
-                },
+                }, 5000);
+            },
 
-                setTab(tab) {
-                    if (this.activeTab !== tab) {
-                        this.activeTab = tab;
-                        this.fetchData();
-                    }
-                },
+            setTab(tab) {
 
-                handleRangeChange() {
-                    if (this.timeRange !== 'custom') {
-                        this.fetchData();
-                    }
-                },
+                if (this.activeTab !== tab) {
 
-                initChart() {
-                    const ctx = document.getElementById('sensorChart').getContext('2d');
-                    if (chart) chart.destroy();
+                    this.activeTab = tab;
 
-                    chart = new Chart(ctx, {
-                        type: 'line',
-                        data: { 
-                            labels: [], 
-                            datasets: [{ label: 'Memuat...', data: [], fill: true }] 
+                    this.fetchData();
+                }
+            },
+
+            handleRangeChange() {
+
+                if (this.timeRange !== 'custom') {
+                    this.fetchData();
+                }
+            },
+
+            initChart() {
+
+                const ctx = document
+                    .getElementById('sensorChart')
+                    .getContext('2d');
+
+                // Destroy chart lama jika ada
+                if (chart) {
+                    chart.destroy();
+                }
+
+                chart = new Chart(ctx, {
+
+                    type: 'line',
+
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Memuat...',
+                            data: [],
+                            fill: true
+                        }]
+                    },
+
+                    options: {
+
+                        responsive: true,
+                        maintainAspectRatio: false,
+
+                        // Realtime lebih smooth
+                        animation: false,
+
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { mode: 'index', intersect: false },
-                            plugins: {
-                                legend: { display: false } // Legend disembunyikan agar lebih bersih (judul sudah ada di HTML)
+
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+
+                        scales: {
+
+                            y: {
+                                beginAtZero: false,
+                                grid: {
+                                    color: '#f3f4f6',
+                                    drawBorder: false
+                                }
                             },
-                            scales: {
-                                y: { 
-                                    beginAtZero: false,
-                                    grid: { color: '#f3f4f6', drawBorder: false }
+
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 8
                                 },
-                                x: { 
-                                    ticks: { maxTicksLimit: 8 },
-                                    grid: { display: false, drawBorder: false }
+
+                                grid: {
+                                    display: false,
+                                    drawBorder: false
                                 }
                             }
                         }
-                    });
-                },
+                    }
+                });
+            },
 
-                fetchData() {
-                    this.isLoading = true;
-                    let url = `/api/grafik/data?type=${this.activeTab}&range=${this.timeRange}`;
-                    
-                    if (this.timeRange === 'custom') {
-                        if(!this.customStart || !this.customEnd) {
-                            this.isLoading = false;
-                            return;
-                        }
-                        url += `&start=${this.customStart}&end=${this.customEnd}`;
-                    } 
-                    else if (this.timeRange === 'hours') {
-                        if(!this.customHours || this.customHours < 1) {
-                            this.isLoading = false;
-                            return;
-                        }
-                        url += `&hours=${this.customHours}`;
+            fetchData() {
+
+                // Hindari request bertumpuk
+                if (this.isLoading) return;
+
+                this.isLoading = true;
+
+                let url =
+                    `${window.location.origin}/api/grafik/data?type=${this.activeTab}&range=${this.timeRange}`;
+
+                // Custom tanggal
+                if (this.timeRange === 'custom') {
+
+                    if (!this.customStart || !this.customEnd) {
+
+                        this.isLoading = false;
+                        return;
                     }
 
-                    fetch(url)
-                        .then(res => res.json())
-                        .then(data => {
-                            if(data.error) return;
-
-                            this.tableData = data.tableData || [];
-                            this.currentUnit = data.unit || '';
-                            
-                            const newLabels = Array.isArray(data.labels) ? data.labels : [];
-                            const newValues = Array.isArray(data.values) ? data.values : [];
-                            
-                            chart.data.labels = newLabels;
-                            chart.data.datasets = [{
-                                label: data.labelName || 'Sensor Data',
-                                data: newValues,
-                                borderColor: this.activeTab === 'ph' ? '#3b82f6' : '#ef4444',
-                                backgroundColor: this.activeTab === 'ph' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                borderWidth: 3,
-                                pointRadius: 0, // Sembunyikan titik agar garis terlihat sangat mulus
-                                pointHoverRadius: 6,
-                                fill: true,
-                                tension: 0.4 // Membuat garis melengkung (smooth curve)
-                            }];
-                            
-                            chart.update();
-                        })
-                        .finally(() => {
-                            this.isLoading = false;
-                        });
+                    url += `&start=${this.customStart}&end=${this.customEnd}`;
                 }
+
+                // Custom jam
+                else if (this.timeRange === 'hours') {
+
+                    if (!this.customHours || this.customHours < 1) {
+
+                        this.isLoading = false;
+                        return;
+                    }
+
+                    url += `&hours=${this.customHours}`;
+                }
+
+                fetch(url, {
+                    cache: 'no-store'
+                })
+
+                .then(response => response.json())
+
+                .then(data => {
+
+                    if (data.error) {
+                        console.error(data.error);
+                        return;
+                    }
+
+                    // Update tabel
+                    this.tableData = data.tableData || [];
+
+                    // Update unit
+                    this.currentUnit = data.unit || '';
+
+                    // Validasi data
+                    const newLabels = Array.isArray(data.labels)
+                        ? data.labels
+                        : [];
+
+                    const newValues = Array.isArray(data.values)
+                        ? data.values
+                        : [];
+
+                    // Update chart
+                    chart.data.labels = newLabels;
+
+                    chart.data.datasets = [{
+
+                        label: data.labelName || 'Sensor Data',
+
+                        data: newValues,
+
+                        borderColor:
+                            this.activeTab === 'ph'
+                            ? '#3b82f6'
+                            : '#ef4444',
+
+                        backgroundColor:
+                            this.activeTab === 'ph'
+                            ? 'rgba(59, 130, 246, 0.15)'
+                            : 'rgba(239, 68, 68, 0.15)',
+
+                        borderWidth: 3,
+
+                        pointRadius: 0,
+
+                        pointHoverRadius: 6,
+
+                        fill: true,
+
+                        tension: 0.4
+                    }];
+
+                    // Update smooth tanpa flicker
+                    chart.update('none');
+                })
+
+                .catch(error => {
+
+                    console.error(
+                        'Gagal mengambil data:',
+                        error
+                    );
+                })
+
+                .finally(() => {
+
+                    this.isLoading = false;
+                });
             }
         }
-    </script>
+    }
+</script>
     
     <style> 
         [x-cloak] { display: none !important; } 

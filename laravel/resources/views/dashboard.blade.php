@@ -61,22 +61,47 @@
 
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                 <div class="w-14 h-14 rounded-full border-2 flex items-center justify-center {{ $realtimeData['is_online'] ? 'bg-blue-50 border-blue-100 text-blue-500' : 'bg-gray-50 border-gray-200 text-gray-400' }}">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                    </svg>
                 </div>
+
                 <div>
-                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Kondisi Air</p>
-                    <h3 class="text-2xl font-bold {{ $realtimeData['is_online'] ? 'text-gray-900' : 'text-gray-400' }} mt-0.5">
-                        @if(!$realtimeData['is_online'])
-                            --
-                        @else
-                            {{ $realtimeData['water'] == 1 ? 'Penuh' : 'Kurang' }}
-                        @endif
+                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                        Kondisi Air
+                    </p>
+
+                    @php
+                        $statusAir = '--';
+                        $statusText = 'Offline';
+                        $statusColor = 'text-gray-400';
+
+                        if ($realtimeData['is_online']) {
+
+                            if ($realtimeData['relay1'] == 'ON') {
+                                $statusAir = 'Menguras Air';
+                                $statusText = 'Menguras...';
+                                $statusColor = 'text-red-500';
+
+                            } elseif ($realtimeData['relay2'] == 'ON') {
+                                $statusAir = 'Mengisi Air';
+                                $statusText = 'Mengisi...';
+                                $statusColor = 'text-blue-500';
+
+                            } else {
+                                $statusAir = 'Normal';
+                                $statusText = 'Stabil';
+                                $statusColor = 'text-green-500';
+                            }
+                        }
+                    @endphp
+
+                    <h3 class="text-2xl font-bold {{ $statusColor }} mt-0.5">
+                        {{ $statusAir }}
                     </h3>
-                    <p class="text-sm font-medium mt-1 
-                        @if(!$realtimeData['is_online']) text-gray-400 
-                        @elseif($realtimeData['water'] == 1) text-green-500 
-                        @else text-yellow-500 @endif">
-                        {{ !$realtimeData['is_online'] ? 'Offline' : ($realtimeData['water'] == 1 ? 'Normal' : 'Mengisi...') }}
+
+                    <p class="text-sm font-medium mt-1 {{ $statusColor }}">
+                        {{ $statusText }}
                     </p>
                 </div>
             </div>
@@ -228,9 +253,57 @@
                         </p>
                     </div>
                 </div>
-                <div class="flex justify-between items-center p-4 border border-gray-100 rounded-xl bg-gray-50">
-                    <span class="text-sm font-semibold text-gray-600">Status Online</span>
-                    <span class="text-sm font-bold text-gray-900">{{ $realtimeData['uptime'] }}</span>
+                <div class="p-4 border border-gray-100 rounded-2xl bg-gray-50">
+    
+                    <div class="flex items-center justify-between mb-3">
+                        
+                        <div class="flex items-center gap-2">
+                            
+                            <div class="w-3 h-3 rounded-full
+                                {{ $realtimeData['is_online']
+                                    ? 'bg-green-500 animate-pulse'
+                                    : 'bg-red-500' }}">
+                            </div>
+
+                            <span class="text-sm font-semibold text-gray-700">
+                                Status Sistem
+                            </span>
+                        </div>
+
+                        <span class="px-3 py-1 rounded-lg text-xs font-bold
+                            {{ $realtimeData['is_online']
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700' }}">
+                            
+                            {{ $realtimeData['is_online']
+                                ? 'ONLINE'
+                                : 'OFFLINE' }}
+                        </span>
+                    </div>
+
+                    <div class="space-y-1">
+                        
+                        <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                            Lama Terhubung
+                        </p>
+
+                        <h3 class="text-2xl font-bold
+                            {{ $realtimeData['is_online']
+                                ? 'text-green-600'
+                                : 'text-red-600' }}">
+                            
+                            {{ $realtimeData['uptime'] }}
+                        </h3>
+
+                        <p class="text-xs text-gray-400">
+                            @if($realtimeData['last_seen'])
+                                Update terakhir:
+                                {{ $realtimeData['last_seen']->format('H:i:s') }}
+                            @else
+                                Belum ada data masuk
+                            @endif
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -245,9 +318,16 @@
                 
                 init() {
                     this.updateTime();
+
+                    // Update jam tiap detik
                     setInterval(() => this.updateTime(), 1000);
-                    
-                    // Render grafik hanya jika data tersedia
+
+                    // Soft reload data tiap 5 detik
+                    setInterval(() => {
+                        window.location.href = window.location.origin + window.location.pathname;
+                    }, 5000);
+
+                    // Render chart
                     if (this.chartData.labels.length > 0) {
                         this.renderChart();
                     }

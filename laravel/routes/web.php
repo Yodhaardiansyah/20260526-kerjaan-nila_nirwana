@@ -31,7 +31,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // Aksi Form & Tombol Perangkat
     Route::post('/device/settings/update', [DeviceController::class, 'updateSettings'])->name('device.settings.update');
-    Route::post('/device/relay/control', [DeviceController::class, 'controlRelay'])->name('device.relay.control');
+    Route::post('/relay/control', [SettingController::class, 'controlRelay'])->name('relay.control');
 
     // Rute Tindakan Darurat / Maintenance
     Route::post('/device/maintenance/reset-cycle', [DeviceController::class, 'resetCycle'])->name('device.maintenance.reset');
