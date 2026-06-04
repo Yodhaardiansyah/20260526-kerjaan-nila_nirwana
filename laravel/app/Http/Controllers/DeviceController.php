@@ -73,17 +73,28 @@ class DeviceController extends Controller
 
     // Fungsi Internal MQTT
     private function publishToMqtt($topic, $payload)
-    {
-        try {
-            $mqtt = new MqttClient('broker.emqx.io', 1883, 'laravel_cmd_' . rand(5, 15));
-            $connectionSettings = (new ConnectionSettings())->setKeepAliveInterval(60)->setConnectTimeout(3);
-            $mqtt->connect($connectionSettings, false);
-            $mqtt->publish($topic, $payload, 0);
-            $mqtt->disconnect();
-        } catch (\Exception $e) {
-            report($e);
-        }
+{
+    try {
+        $mqtt = new MqttClient(
+            env('MQTT_HOST'),
+            (int) env('MQTT_PORT', 1883),
+            'laravel_cmd_' . rand(1000, 9999)
+        );
+
+        $connectionSettings = (new ConnectionSettings())
+            ->setUsername(env('MQTT_USERNAME'))
+            ->setPassword(env('MQTT_PASSWORD'))
+            ->setKeepAliveInterval(60)
+            ->setConnectTimeout(3);
+
+        $mqtt->connect($connectionSettings, false);
+        $mqtt->publish($topic, $payload, 0);
+        $mqtt->disconnect();
+
+    } catch (\Exception $e) {
+        report($e);
     }
+}
 
     // Fungsi untuk mereset variabel siklus di Node-RED
     public function resetCycle()
